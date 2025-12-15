@@ -1,16 +1,12 @@
 package com.deepseatrawling;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.inject.Provides;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.*;
 import net.runelite.api.gameval.NpcID;
-import net.runelite.api.gameval.ObjectID;
-import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -21,20 +17,18 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.api.ChatMessageType;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 import net.runelite.client.util.ImageUtil;
-import org.apache.commons.lang3.ArrayUtils;
 
 import javax.inject.Inject;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.*;
 
 
 @Slf4j
 @PluginDescriptor(
-	name = "Deep Sea Trawling Helper",
-	description = "Tracks Shoals and predicts their next movement",
-	tags = {"trawl", "trawling", "sailing", "fishing", "shoal", "deep", "sea"}
+	name = "Deep Sea Trawling",
+	description = "Tracks Shoals - their movement, depth and relation to your net(s)",
+	tags = {"trawl", "trawling", "sailing", "fishing", "shoal", "deep", "sea", "net"}
 )
 public class DeepSeaTrawling extends Plugin
 {
@@ -62,13 +56,13 @@ public class DeepSeaTrawling extends Plugin
 	private TrawlingNetInfoBox trawlingNetInfoBox;
 
 	public final Set<Integer> trackedShoals = new HashSet<>();
-	public final List<ShoalData.shoalSpecies> shoalTypes = List.of(
-			ShoalData.shoalSpecies.GIANT_KRILL,
-			ShoalData.shoalSpecies.HADDOCK,
-			ShoalData.shoalSpecies.HALIBUT,
-			ShoalData.shoalSpecies.YELLOWFIN,
-			ShoalData.shoalSpecies.BLUEFIN,
-			ShoalData.shoalSpecies.MARLIN
+	public final List<ShoalData.ShoalSpecies> shoalTypes = List.of(
+			ShoalData.ShoalSpecies.GIANT_KRILL,
+			ShoalData.ShoalSpecies.HADDOCK,
+			ShoalData.ShoalSpecies.HALIBUT,
+			ShoalData.ShoalSpecies.YELLOWFIN,
+			ShoalData.ShoalSpecies.BLUEFIN,
+			ShoalData.ShoalSpecies.MARLIN
 	);
 
 	private ShoalData nearestShoal;
@@ -144,7 +138,15 @@ public class DeepSeaTrawling extends Plugin
 
 		int worldViewId = view.getId();
 
-		nearestShoal = new ShoalData(worldViewId, entity);
+		if(nearestShoal == null)
+		{
+			nearestShoal = new ShoalData(worldViewId, entity);
+		}
+
+		if (nearestShoal.getWorldViewId() != worldViewId) {
+			nearestShoal = new ShoalData(worldViewId, entity);
+		}
+
 
 		//debugging
 		log.debug("Registered shoal entity worldViewId={} typeId={}", worldViewId, cfg.getId());
@@ -171,7 +173,7 @@ public class DeepSeaTrawling extends Plugin
 		if ( nearestShoal.getShoalNpc() == e.getNpc() )
 		{
 			nearestShoal.setShoalNpc(null);
-			nearestShoal.setDepth(ShoalData.shoalDepth.UNKNOWN);
+			nearestShoal.setDepth(ShoalData.ShoalDepth.UNKNOWN);
 		}
 	}
 
@@ -200,7 +202,7 @@ public class DeepSeaTrawling extends Plugin
 				return;
 			}
 		}
-		ShoalData.shoalSpecies species = ShoalData.shoalSpecies.fromGameObjectId(id);
+		ShoalData.ShoalSpecies species = ShoalData.ShoalSpecies.fromGameObjectId(id);
 		if (species == null) {
 			return;
 		}
@@ -214,6 +216,7 @@ public class DeepSeaTrawling extends Plugin
 		shoal.setSpecies(species);
 		shoal.setShoalObject(object);
 		shoal.setDepthFromAnimation();
+		shoal.setCurrent(shoal.getWorldEntity().getLocalLocation());
 
 		log.debug("Shoal worldViewId={} species={} objectId={}", worldViewId, species, id);
 	}
@@ -236,6 +239,34 @@ public class DeepSeaTrawling extends Plugin
 		shoal.setDepthFromAnimation();
 
 		shoal.setCurrent(shoal.getWorldEntity().getLocalLocation());
+
+/*
+
+		LocalPoint current = shoal.getWorldEntity().getLocalLocation();
+		LocalPoint next = shoal.getWorldEntity().getTargetLocation();
+
+		WorldPoint currentWorldPoint = WorldPoint.fromLocalInstance(client, current);
+		WorldPoint last = shoal.getLast();
+
+		boolean isMoving = (current != null && next != null && !current.equals(next));
+
+		if (currentWorldPoint != null && isMoving) {
+			if ((last == null || worldDistanceSq(last, currentWorldPoint) < 40 * 40)) {
+				shoal.setPathPoints(currentWorldPoint);
+			} else {
+				shoal.setPathPoints(currentWorldPoint);
+			}
+		}
+
+		if (shoal.getWasMoving() && !isMoving && current != null)
+		{
+			shoal.setStopPoints(currentWorldPoint);
+		}
+
+		shoal.setWasMoving(isMoving);
+		shoal.setLast(currentWorldPoint);
+
+		*/
 	}
 
 	@Subscribe
@@ -297,7 +328,14 @@ public class DeepSeaTrawling extends Plugin
 		int dy = a.getY() - b.getY();
 		return dx * dx + dy * dy;
 	}
-
+/*
+	public int worldDistanceSq(WorldPoint a, WorldPoint b)
+	{
+		int dx = a.getX() - b.getX();
+		int dy = a.getY() - b.getY();
+		return dx * dx + dy * dy;
+	}
+*/
 	private void rebuildTrackedShoals() {
 		trackedShoals.clear();
 
@@ -337,6 +375,19 @@ public class DeepSeaTrawling extends Plugin
 			return;
 		}
 		rebuildTrackedShoals();
+		/*
+		StringBuilder builder = new StringBuilder();
+		builder.append("Shoal wv=").append(nearestShoal.getWorldViewId()).append(" species=").append(nearestShoal.getSpecies()).append(" path=[");
+
+		for (WorldPoint worldPoint : nearestShoal.getPathPoints()) {
+			builder.append(worldPoint.getX()).append(", ").append(worldPoint.getY()).append(", 0|");
+		}
+		builder.append("] stops=[");
+		for (WorldPoint worldPoint : nearestShoal.getStopPoints()) {
+			builder.append(worldPoint.getX()).append(", ").append(worldPoint.getY()).append(", 0|");
+		}
+
+		log.info(builder.toString());*/
 	}
 
 	private static final Map<String, Integer> WORD_NUMBERS = Map.of(
@@ -364,19 +415,6 @@ public class DeepSeaTrawling extends Plugin
 
 		throw new IllegalArgumentException("Unknown quantity: " + s);
 	}
-
-	private boolean isNetObject(int objectId)
-	{
-		for (NetTiers tier : NetTiers.values())
-		{
-			if (ArrayUtils.contains(tier.getGameObjectIds(), objectId))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
 	public boolean isPortNetObject(int objectId)
 	{
 		return objectId == net.runelite.api.gameval.ObjectID.SAILING_ROPE_TRAWLING_NET_3X8_PORT
@@ -394,7 +432,7 @@ public class DeepSeaTrawling extends Plugin
 				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_ROPE_TRAWLING_NET
 				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_LINEN_TRAWLING_NET
 				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_HEMP_TRAWLING_NET
-				|| objectId == ObjectID.SAILING_COTTON_TRAWLING_NET;
+				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_COTTON_TRAWLING_NET;
 	}
 
 }

@@ -8,20 +8,18 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.coords.LocalPoint;
-import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 
 import javax.inject.Inject;
 import java.awt.*;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Objects;
 
 public class DeepSeaTrawlingOverlay extends Overlay {
 
     private final Client client;
     private final DeepSeaTrawling plugin;
 
-    private final Map<ShoalData.shoalSpecies, Color> speciesColors = new EnumMap<>(ShoalData.shoalSpecies.class);
+    private final Map<ShoalData.ShoalSpecies, Color> speciesColors = new EnumMap<>(ShoalData.ShoalSpecies.class);
 
     @Inject
     private DeepSeaTrawlingOverlay(Client client, DeepSeaTrawling plugin) {
@@ -30,15 +28,15 @@ public class DeepSeaTrawlingOverlay extends Overlay {
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_SCENE);
 
-        speciesColors.put(ShoalData.shoalSpecies.GIANT_KRILL, new Color(255, 150, 150));
-        speciesColors.put(ShoalData.shoalSpecies.YELLOWFIN, new Color(255, 220, 120));
-        speciesColors.put(ShoalData.shoalSpecies.HADDOCK, new Color(255, 255, 200));
-        speciesColors.put(ShoalData.shoalSpecies.HALIBUT, new Color(200, 255, 200));
-        speciesColors.put(ShoalData.shoalSpecies.BLUEFIN, new Color(120, 180, 255));
-        speciesColors.put(ShoalData.shoalSpecies.MARLIN, new Color(0, 200, 255));
-        speciesColors.put(ShoalData.shoalSpecies.SHIMMERING, new Color(200, 255, 255));
-        speciesColors.put(ShoalData.shoalSpecies.GLISTENING, new Color(220, 200, 255));
-        speciesColors.put(ShoalData.shoalSpecies.VIBRANT, new Color(255, 200, 220));
+        speciesColors.put(ShoalData.ShoalSpecies.GIANT_KRILL, new Color(255, 150, 150));
+        speciesColors.put(ShoalData.ShoalSpecies.YELLOWFIN, new Color(255, 220, 120));
+        speciesColors.put(ShoalData.ShoalSpecies.HADDOCK, new Color(255, 255, 200));
+        speciesColors.put(ShoalData.ShoalSpecies.HALIBUT, new Color(200, 255, 200));
+        speciesColors.put(ShoalData.ShoalSpecies.BLUEFIN, new Color(120, 180, 255));
+        speciesColors.put(ShoalData.ShoalSpecies.MARLIN, new Color(0, 200, 255));
+        speciesColors.put(ShoalData.ShoalSpecies.SHIMMERING, new Color(200, 255, 255));
+        speciesColors.put(ShoalData.ShoalSpecies.GLISTENING, new Color(220, 200, 255));
+        speciesColors.put(ShoalData.ShoalSpecies.VIBRANT, new Color(255, 200, 220));
     }
 
     @Override
@@ -78,7 +76,7 @@ public class DeepSeaTrawlingOverlay extends Overlay {
         if(plugin.trackedShoals.contains(shoal.getWorldViewId())) {
             Color baseColour = speciesColors.getOrDefault(shoal.getSpecies(), Color.WHITE);
 
-            if (shoal.getSpecies() == ShoalData.shoalSpecies.SHIMMERING || shoal.getSpecies() == ShoalData.shoalSpecies.GLISTENING || shoal.getSpecies() == ShoalData.shoalSpecies.VIBRANT)
+            if (shoal.getSpecies() == ShoalData.ShoalSpecies.SHIMMERING || shoal.getSpecies() == ShoalData.ShoalSpecies.GLISTENING || shoal.getSpecies() == ShoalData.ShoalSpecies.VIBRANT)
             {
                 drawPath(graphics, shoal, new Color(0,204,255));
             } else {
@@ -201,8 +199,6 @@ public class DeepSeaTrawlingOverlay extends Overlay {
         graphics.setColor(colour);
         graphics.setStroke(new BasicStroke(2));
 
-        graphics.drawLine(from.getX(), from.getY(), to.getX(), to.getY());
-
         double dx = to.getX() - from.getX();
         double dy = to.getY() - from.getY();
         double angle = Math.atan2(dy, dx);
@@ -227,7 +223,7 @@ public class DeepSeaTrawlingOverlay extends Overlay {
 
     private void drawDepthLabel(Graphics2D graphic, ShoalData shoal, int sizeTiles)
     {
-        ShoalData.shoalDepth depth = shoal.getDepth();
+        ShoalData.ShoalDepth depth = shoal.getDepth();
         String text;
         Color textColour;
 

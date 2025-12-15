@@ -1,8 +1,6 @@
 package com.deepseatrawling;
 
-import lombok.Getter;
 import net.runelite.api.Client;
-import net.runelite.api.gameval.VarbitID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
@@ -44,9 +42,9 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
     public Dimension render(Graphics2D graphics)
     {
        ShoalData shoal = plugin.getNearestShoal();
-       if (shoal != null && shoal.getDepth() != ShoalData.shoalDepth.UNKNOWN)
+       if (shoal != null && shoal.getDepth() != ShoalData.ShoalDepth.UNKNOWN)
        {
-           int desired = ShoalData.shoalDepth.asInt(shoal.getDepth());
+           int desired = ShoalData.ShoalDepth.asInt(shoal.getDepth());
            if (desired < 1) {
                return null;
            }

@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 
 public class ShoalData {
 
-    public enum shoalSpecies
+    public enum ShoalSpecies
     {
         GIANT_KRILL (ObjectID.GIANT_KRILL_SHOAL),
         HADDOCK (ObjectID.HADDOCK_SHOAL),
@@ -26,48 +26,26 @@ public class ShoalData {
 
         private final int objectID;
 
-        public EnumSet<shoalDepth> allowedDepths()
-        {
-            switch(this)
-            {
-                case GIANT_KRILL:
-                case HADDOCK:
-                case SHIMMERING:
-                    return EnumSet.of(shoalDepth.SHALLOW);
-
-                case YELLOWFIN:
-                case HALIBUT:
-                case GLISTENING:
-                    return EnumSet.of(shoalDepth.SHALLOW, shoalDepth.MEDIUM);
-
-                case BLUEFIN:
-                case MARLIN:
-                case VIBRANT:
-                default:
-                    return  EnumSet.of(shoalDepth.SHALLOW, shoalDepth.MEDIUM, shoalDepth.DEEP);
-            }
-        }
-
-        public shoalDepth defaultDepth()
+        public ShoalDepth defaultDepth()
         {
             switch (this)
             {
                 case GIANT_KRILL:
                 case HADDOCK:
                 case SHIMMERING:
-                    return shoalDepth.SHALLOW;
+                    return ShoalDepth.SHALLOW;
                 default:
-                    return shoalDepth.MEDIUM;
+                    return ShoalDepth.MEDIUM;
             }
         }
 
-        shoalSpecies(int objectID) {
+        ShoalSpecies(int objectID) {
             this.objectID = objectID;
         }
 
-        public static shoalSpecies fromGameObjectId(int id)
+        public static ShoalSpecies fromGameObjectId(int id)
         {
-            for (shoalSpecies s : values())
+            for (ShoalSpecies s : values())
             {
                 if (s.objectID == id) {
                     return s;
@@ -78,14 +56,14 @@ public class ShoalData {
 
     }
 
-    public enum shoalDepth
+    public enum ShoalDepth
     {
         SHALLOW,
         MEDIUM,
         DEEP,
         UNKNOWN;
 
-        public static int asInt(shoalDepth depth)
+        public static int asInt(ShoalDepth depth)
         {
             switch(depth) {
                 case SHALLOW:
@@ -102,20 +80,19 @@ public class ShoalData {
 
     private NPC shoalNpc;
 
-    private shoalDepth depth;
-    private EnumSet<shoalDepth> possibleDepths;
+    private ShoalDepth depth;
 
     private static final String RESOURCE_NAME = "shoals.properties";
 
     private final WorldEntity worldEntity;
     private final int worldViewId;
-    private shoalSpecies species;
+    private ShoalSpecies species;
 
     private GameObject shoalObject;
 
-    private WorldPoint last;
+    //private WorldPoint last;
     private LocalPoint current;
-    private LocalPoint next;
+    //private LocalPoint next;
     private boolean wasMoving;
 
     private List<WorldPoint> pathPoints = new ArrayList<>();
@@ -127,37 +104,23 @@ public class ShoalData {
         load();
     }
 
-    public void setSpecies(shoalSpecies species) {
+    public void setSpecies(ShoalSpecies species) {
         this.species = species;
         this.depth = species.defaultDepth();
-        this.possibleDepths = EnumSet.copyOf(species.allowedDepths());
-        if(possibleDepths.size() == 1) {
-            this.depth = possibleDepths.iterator().next();
-        }
     }
 
-    public shoalSpecies getSpecies() {
+    public ShoalSpecies getSpecies() {
         return species;
     }
 
-    public shoalDepth getDepth() {
+    public ShoalDepth getDepth() {
         return depth;
     }
 
-    public void setDepth(shoalDepth depth) {
+    public void setDepth(ShoalDepth depth) {
         this.depth = depth;
-        if (depth != shoalDepth.UNKNOWN) {
-            this.possibleDepths = EnumSet.of(depth);
-        }
     }
 
-    public EnumSet<shoalDepth> getPossibleDepths() {
-        return possibleDepths;
-    }
-
-    public void setPossibleDepths(EnumSet<shoalDepth> possibleDepths) {
-        this.possibleDepths = possibleDepths;
-    }
 
     public void setShoalObject(GameObject shoalObject) {
         this.shoalObject = shoalObject;
@@ -182,6 +145,8 @@ public class ShoalData {
     public void setCurrent(LocalPoint current) {
         this.current = current;
     }
+/*
+    public WorldPoint getLast() { return last; }
 
     public void setNext(LocalPoint next) {
         this.next = next;
@@ -191,6 +156,18 @@ public class ShoalData {
         this.last = last;
     }
 
+    public void setPathPoints(WorldPoint worldPoint) {
+            pathPoints.add(worldPoint);
+    }
+
+    public void setStopPoints(WorldPoint worldPoint) {
+        if(stopPoints.contains(worldPoint))
+        {
+            return;
+        }
+        stopPoints.add(worldPoint);
+    }
+*/
     public List<WorldPoint> getPathPoints() {
         return pathPoints;
     }
@@ -202,6 +179,8 @@ public class ShoalData {
     public boolean getWasMoving() {
         return wasMoving;
     }
+
+    public void setWasMoving(boolean wasMoving) { this.wasMoving = wasMoving; }
 
     public void setShoalNpc(NPC shoalNpc) {
         this.shoalNpc = shoalNpc;
@@ -274,7 +253,8 @@ public class ShoalData {
     {
         if (shoalNpc == null)
         {
-            this.depth = shoalDepth.UNKNOWN;
+            this.depth = ShoalDepth.UNKNOWN;
+            return;
         }
         int animation = shoalNpc.getAnimation();
         if (animation == -1)
@@ -285,16 +265,16 @@ public class ShoalData {
         switch (animation)
         {
             case net.runelite.api.gameval.AnimationID.DEEP_SEA_TRAWLING_SHOAL_SHALLOW:
-                this.depth = shoalDepth.SHALLOW;
+                this.depth = ShoalDepth.SHALLOW;
                 break;
             case net.runelite.api.gameval.AnimationID.DEEP_SEA_TRAWLING_SHOAL_MID:
-                this.depth = shoalDepth.MEDIUM;
+                this.depth = ShoalDepth.MEDIUM;
                 break;
             case net.runelite.api.gameval.AnimationID.DEEP_SEA_TRAWLING_SHOAL_DEEP:
-                this.depth = shoalDepth.DEEP;
+                this.depth = ShoalDepth.DEEP;
                 break;
             default:
-                this.depth = shoalDepth.UNKNOWN;
+                this.depth = ShoalDepth.UNKNOWN;
 
         }
 

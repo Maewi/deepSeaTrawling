@@ -40,12 +40,12 @@ public class TrawlingNetOverlay extends Overlay {
         }
 
         ShoalData shoal = plugin.getNearestShoal();
-        if (shoal == null || shoal.getDepth() == ShoalData.shoalDepth.UNKNOWN)
+        if (shoal == null || shoal.getDepth() == ShoalData.ShoalDepth.UNKNOWN)
         {
             return null;
         }
 
-        int desired = ShoalData.shoalDepth.asInt(shoal.getDepth());
+        int desired = ShoalData.ShoalDepth.asInt(shoal.getDepth());
         if (desired < 1)
         {
             return null;
