@@ -1,28 +1,36 @@
 package com.deepseatrawling;
 
-import net.runelite.api.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Properties;
+import net.runelite.api.GameObject;
+import net.runelite.api.NPC;
+import net.runelite.api.gameval.AnimationID;
+import net.runelite.api.gameval.ObjectID;
+import net.runelite.api.WorldEntity;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
 import java.util.stream.Collectors;
 
 public class ShoalData {
 
     public enum ShoalSpecies
     {
-        GIANT_KRILL (ObjectID.GIANT_KRILL_SHOAL),
-        HADDOCK (ObjectID.HADDOCK_SHOAL),
-        YELLOWFIN (ObjectID.YELLOWFIN_SHOAL),
-        HALIBUT (ObjectID.HALIBUT_SHOAL),
-        BLUEFIN (ObjectID.BLUEFIN_SHOAL),
-        MARLIN (ObjectID.MARLIN_SHOAL),
-        SHIMMERING (ObjectID.SHIMMERING_SHOAL),
-        GLISTENING (ObjectID.GLISTENING_SHOAL),
-        VIBRANT (ObjectID.VIBRANT_SHOAL);
+        GIANT_KRILL (ObjectID.SAILING_SHOAL_CLICKBOX_GIANT_KRILL),
+        HADDOCK (ObjectID.SAILING_SHOAL_CLICKBOX_HADDOCK),
+        YELLOWFIN (ObjectID.SAILING_SHOAL_CLICKBOX_YELLOWFIN),
+        HALIBUT (ObjectID.SAILING_SHOAL_CLICKBOX_HALIBUT),
+        BLUEFIN (ObjectID.SAILING_SHOAL_CLICKBOX_BLUEFIN),
+        MARLIN (ObjectID.SAILING_SHOAL_CLICKBOX_MARLIN),
+        SHIMMERING (ObjectID.SAILING_SHOAL_CLICKBOX_SHIMMERING),
+        GLISTENING (ObjectID.SAILING_SHOAL_CLICKBOX_GLISTENING),
+        VIBRANT (ObjectID.SAILING_SHOAL_CLICKBOX_VIBRANT);
 
         private final int objectID;
 
@@ -264,13 +272,13 @@ public class ShoalData {
 
         switch (animation)
         {
-            case net.runelite.api.gameval.AnimationID.DEEP_SEA_TRAWLING_SHOAL_SHALLOW:
+			case AnimationID.DEEP_SEA_TRAWLING_SHOAL_SHALLOW:
                 this.depth = ShoalDepth.SHALLOW;
                 break;
-            case net.runelite.api.gameval.AnimationID.DEEP_SEA_TRAWLING_SHOAL_MID:
+            case AnimationID.DEEP_SEA_TRAWLING_SHOAL_MID:
                 this.depth = ShoalDepth.MEDIUM;
                 break;
-            case net.runelite.api.gameval.AnimationID.DEEP_SEA_TRAWLING_SHOAL_DEEP:
+            case AnimationID.DEEP_SEA_TRAWLING_SHOAL_DEEP:
                 this.depth = ShoalDepth.DEEP;
                 break;
             default:
