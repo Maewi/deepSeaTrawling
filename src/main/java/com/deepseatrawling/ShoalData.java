@@ -73,6 +73,9 @@ public class ShoalData {
 
         public static int asInt(ShoalDepth depth)
         {
+			if (depth == null) {
+				return -1;
+			}
             switch(depth) {
                 case SHALLOW:
                     return 1;
@@ -109,7 +112,11 @@ public class ShoalData {
     public ShoalData(int worldViewId, WorldEntity worldEntity) throws IOException {
         this.worldViewId = worldViewId;
         this.worldEntity = worldEntity;
+		long start = System.nanoTime();
         load();
+		long end = System.nanoTime();
+		long diff = (end - start) / 1_000_000;
+		System.out.println("took " + diff + "ms to load");
     }
 
     public void setSpecies(ShoalSpecies species) {
