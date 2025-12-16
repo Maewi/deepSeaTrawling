@@ -112,11 +112,7 @@ public class ShoalData {
     public ShoalData(int worldViewId, WorldEntity worldEntity) throws IOException {
         this.worldViewId = worldViewId;
         this.worldEntity = worldEntity;
-		long start = System.nanoTime();
         load();
-		long end = System.nanoTime();
-		long diff = (end - start) / 1_000_000;
-		System.out.println("took " + diff + "ms to load");
     }
 
     public void setSpecies(ShoalSpecies species) {
@@ -277,6 +273,8 @@ public class ShoalData {
             return;
         }
 
+		ShoalDepth prev = this.depth;
+
         switch (animation)
         {
 			case AnimationID.DEEP_SEA_TRAWLING_SHOAL_SHALLOW:
@@ -290,9 +288,11 @@ public class ShoalData {
                 break;
             default:
                 this.depth = ShoalDepth.UNKNOWN;
-
         }
 
+		if (prev != ShoalDepth.UNKNOWN && this.depth != ShoalDepth.UNKNOWN) {
+
+		}
     }
 
     public NPC getShoalNpc() {
