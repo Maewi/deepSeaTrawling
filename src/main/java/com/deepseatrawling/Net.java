@@ -26,6 +26,9 @@ public class Net {
     public NetDepth getNetDepth() {
         return netDepth;
     }
+    public int getNetDepthAsInt() {
+        return netDepth.depth;
+    }
 
     public enum NetDepth {
         RAISED(0),
