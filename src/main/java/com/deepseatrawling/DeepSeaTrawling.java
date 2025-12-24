@@ -290,7 +290,6 @@ public class DeepSeaTrawling extends Plugin
 		if (type == ChatMessageType.GAMEMESSAGE || type == ChatMessageType.SPAM)
 		{
             String msg = event.getMessage().replaceAll("<[^>]*>","");
-            String substring = "";
 			if (msg.equals("You empty the nets into the cargo hold.") || msg.equals("You empty the net into the cargo hold.")) {
                 fishQuantity = 0;
                 log.debug("Emptied nets");
