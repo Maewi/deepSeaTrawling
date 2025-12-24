@@ -19,29 +19,25 @@ public class DeepSeaTrawlingOverlay extends Overlay {
 
     private final Client client;
     private final DeepSeaTrawling plugin;
-
-    private final Map<ShoalData.ShoalSpecies, Color> speciesColors = new EnumMap<>(ShoalData.ShoalSpecies.class);
+    private final DeepSeaTrawlingConfig config;
 
     @Inject
-    private DeepSeaTrawlingOverlay(Client client, DeepSeaTrawling plugin) {
+    private DeepSeaTrawlingOverlay(Client client, DeepSeaTrawling plugin, DeepSeaTrawlingConfig config) {
         this.client = client;
         this.plugin = plugin;
+        this.config = config;
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_SCENE);
-
-        speciesColors.put(ShoalData.ShoalSpecies.GIANT_KRILL, new Color(255, 150, 150));
-        speciesColors.put(ShoalData.ShoalSpecies.YELLOWFIN, new Color(255, 220, 120));
-        speciesColors.put(ShoalData.ShoalSpecies.HADDOCK, new Color(255, 255, 200));
-        speciesColors.put(ShoalData.ShoalSpecies.HALIBUT, new Color(200, 255, 200));
-        speciesColors.put(ShoalData.ShoalSpecies.BLUEFIN, new Color(120, 180, 255));
-        speciesColors.put(ShoalData.ShoalSpecies.MARLIN, new Color(0, 200, 255));
-        speciesColors.put(ShoalData.ShoalSpecies.SHIMMERING, new Color(200, 255, 255));
-        speciesColors.put(ShoalData.ShoalSpecies.GLISTENING, new Color(220, 200, 255));
-        speciesColors.put(ShoalData.ShoalSpecies.VIBRANT, new Color(255, 200, 220));
     }
 
     @Override
     public Dimension render(Graphics2D graphics) {
+
+
+        if (plugin.netObjectByIndex[0] != null || plugin.netObjectByIndex[1] != null)
+        {
+            return null;
+        }
         ShoalData shoal = plugin.getNearestShoal();
         if (shoal == null) {
             return null;
@@ -75,13 +71,15 @@ public class DeepSeaTrawlingOverlay extends Overlay {
             size = 1;
         }
         if(plugin.trackedShoals.contains(shoal.getWorldViewId())) {
-            Color baseColour = speciesColors.getOrDefault(shoal.getSpecies(), Color.WHITE);
+            Color baseColour = plugin.speciesColours.getOrDefault(shoal.getSpecies(), Color.WHITE);
 
-            if (shoal.getSpecies() == ShoalData.ShoalSpecies.SHIMMERING || shoal.getSpecies() == ShoalData.ShoalSpecies.GLISTENING || shoal.getSpecies() == ShoalData.ShoalSpecies.VIBRANT)
+            if (config.pathColourMode() == DeepSeaTrawlingConfig.PathColourMode.SOLID && (shoal.getSpecies() == ShoalData.ShoalSpecies.SHIMMERING || shoal.getSpecies() == ShoalData.ShoalSpecies.GLISTENING || shoal.getSpecies() == ShoalData.ShoalSpecies.VIBRANT))
             {
-                drawPath(graphics, shoal, new Color(0,204,255));
+                drawPath(graphics, shoal, config.specialPathColour());
+            } else if (config.pathColourMode() == DeepSeaTrawlingConfig.PathColourMode.SOLID) {
+                drawPath(graphics, shoal, config.shoalPathColour());
             } else {
-                drawPath(graphics, shoal, new Color(0,51,102));
+                drawPath(graphics, shoal, Color.WHITE);
             }
             drawStopSquares(graphics, shoal, size, baseColour);
 
@@ -122,7 +120,6 @@ public class DeepSeaTrawlingOverlay extends Overlay {
         int plane = shoal.getWorldEntity().getWorldView().getPlane();
 
         path.setStroke(new BasicStroke(1.5f));
-        path.setColor(baseColour);
 
         int ARROW_EVERY_N_SEGMENTS = 5;
         for (int i = 0; i < points.size() - 1; i++)
@@ -146,9 +143,16 @@ public class DeepSeaTrawlingOverlay extends Overlay {
                 continue;
             }
 
+            if (config.pathColourMode() == DeepSeaTrawlingConfig.PathColourMode.GRADIENT) {
+                float t = (points.size() <= 1) ? 0f : (i / (float)(points.size() - 1));
+                baseColour = Color.getHSBColor(t, 1.0f, 1.0f);
+            }
+
+            path.setColor(baseColour);
+
             path.drawLine(pointA.getX(), pointA.getY(), pointB.getX(), pointB.getY());
 
-            if (i % ARROW_EVERY_N_SEGMENTS == 0)
+            if (config.showDirectionArrows() && i % ARROW_EVERY_N_SEGMENTS == 0)
             {
                 drawArrow(path, pointA, pointB, baseColour);
             }
@@ -224,6 +228,9 @@ public class DeepSeaTrawlingOverlay extends Overlay {
 
     private void drawDepthLabel(Graphics2D graphic, ShoalData shoal, int sizeTiles)
     {
+        if (!config.showShoalDepthText()) {
+            return;
+        }
         ShoalData.ShoalDepth depth = shoal.getDepth();
         String text;
         Color textColour;

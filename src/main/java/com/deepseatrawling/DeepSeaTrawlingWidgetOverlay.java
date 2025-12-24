@@ -2,6 +2,8 @@ package com.deepseatrawling;
 
 import net.runelite.api.Client;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.Notifier;
+import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -11,6 +13,10 @@ import javax.inject.Inject;
 import java.awt.*;
 
 public class DeepSeaTrawlingWidgetOverlay extends Overlay {
+
+    @Inject
+    private Notifier notifier;
+    private boolean notifiedDepthChange = false;
 
     private static final int SAILING_SIDEPANEL_GROUP = 937;
     private static final int FACILITIES_CONTENT_CLICKLAYER_CHILD = 25;
@@ -22,8 +28,12 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
     private static final int PORT_DOWN_INDEX = 45;
     private static final int PORT_UP_INDEX = 46;
 
+    private static final int SKIFF_WORLDVIEW_ID = 2;
+    private static final int SLOOP_WORLDVIEW_ID = 3;
+
     private final Client client;
     private final DeepSeaTrawling plugin;
+    private final DeepSeaTrawlingConfig config;
 
     enum Direction {
         UP,
@@ -31,10 +41,11 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
     }
 
     @Inject
-    public DeepSeaTrawlingWidgetOverlay(Client client, DeepSeaTrawling plugin)
+    public DeepSeaTrawlingWidgetOverlay(Client client, DeepSeaTrawling plugin, DeepSeaTrawlingConfig config)
     {
         this.client = client;
         this.plugin = plugin;
+        this.config = config;
         setPosition(OverlayPosition.DYNAMIC);
         setLayer(OverlayLayer.ABOVE_WIDGETS);
     }
@@ -42,6 +53,17 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
     @Override
     public Dimension render(Graphics2D graphics)
     {
+        if (plugin.boats.get(client.getLocalPlayer().getWorldView().getId()) != null) {
+            int playerBoat = plugin.boats.get(client.getLocalPlayer().getWorldView().getId());
+            if (config.showNetDepthText()) {
+                if (playerBoat == SKIFF_WORLDVIEW_ID) {
+                    drawNetDepthLetter(graphics, 0);
+                } else if (playerBoat == SLOOP_WORLDVIEW_ID) {
+                    drawNetDepthLetter(graphics, 0);
+                    drawNetDepthLetter(graphics, 1);
+                }
+        }
+    }
        ShoalData shoal = plugin.getNearestShoal();
        if (shoal != null && shoal.getDepth() != ShoalData.ShoalDepth.UNKNOWN)
        {
@@ -54,11 +76,18 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
            {
                int current = Net.NetDepth.asInt(plugin.netList[netIndex].getNetDepth());
                if (current <= 0 || current == desired) {
+                   notifiedDepthChange = false;
                    continue;
                }
 
-               Direction direction = current < desired ? Direction.DOWN : Direction.UP;
-               highlightNetButton(graphics, netIndex, direction);
+               if (!notifiedDepthChange && config.notifyDepthChange()) {
+                   notifier.notify("Trawling net(s) full! Empty now!");
+                   notifiedDepthChange = true;
+               }
+               if (config.showNetWidgetHint()) {
+                   Direction direction = current < desired ? Direction.DOWN : Direction.UP;
+                   highlightNetButton(graphics, netIndex, direction);
+               }
            }
        }
         return null;
@@ -76,40 +105,143 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
             }
         }
 
-        int[] childIds = {-1, -1};
+        if (plugin.boats.get(client.getLocalPlayer().getWorldView().getId()) == null) {
+            return;
+        }
+        int shipType = plugin.boats.get(client.getLocalPlayer().getWorldView().getId());
+
+        int childId = -1;
         if (netIndex == 0) {
-            childIds[0] = (direction == Direction.DOWN ? STARBOARD_DOWN_INDEX : STARBOARD_UP_INDEX);
-            childIds[1] = (direction == Direction.DOWN ? SKIFF_DOWN_INDEX : SKIFF_UP_INDEX);
+            if (shipType == SKIFF_WORLDVIEW_ID) {
+                childId = (direction == Direction.DOWN ? SKIFF_DOWN_INDEX : SKIFF_UP_INDEX);
+            } else if (shipType == SLOOP_WORLDVIEW_ID){
+                childId = (direction == Direction.DOWN ? STARBOARD_DOWN_INDEX : STARBOARD_UP_INDEX);
+            }
         } else if (netIndex == 1) {
-            childIds[0] = direction == Direction.DOWN ? PORT_DOWN_INDEX : PORT_UP_INDEX;
+            childId = direction == Direction.DOWN ? PORT_DOWN_INDEX : PORT_UP_INDEX;
         } else {
             return;
         }
+        Widget viewport = client.getWidget(161, 73);
+        if (viewport == null) return;
 
-        for(int childId : childIds) {
-            if (childId == -1) continue;
+        Widget button = parent.getChild(childId);
+        if (button == null || button.isHidden() || button.getBounds().width <=0 || button.getBounds().height <= 0 || hidden || !viewport.getBounds().intersects(button.getBounds())) return;
 
-            Widget button = parent.getChild(childId);
-            if (button == null || button.isHidden() || button.getBounds().width <= 0 || button.getBounds().height <= 0 || hidden) {
-				continue;
-			}
+        Rectangle bounds = button.getBounds();
+        if (bounds == null) return;
 
-			Widget widget = client.getWidget(161,73);
-			if (widget != null && !widget.getBounds().intersects(button.getBounds())) {
-				continue;
-			}
+        g.setColor(new Color(config.uiHighlightColour().getRed(), config.uiHighlightColour().getGreen(), config.uiHighlightColour().getBlue(), 120));
+        g.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
 
-            Rectangle bounds = button.getBounds();
-            if (bounds == null) continue;
+        g.setColor(new Color(config.uiHighlightColour().getRed(), config.uiHighlightColour().getGreen(), config.uiHighlightColour().getBlue(), 220));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
 
-            g.setColor(new Color(255, 255, 0, 120));
-            g.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
-
-            g.setColor(new Color(255, 255, 0, 220));
-            g.setStroke(new BasicStroke(2));
-            g.drawRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
-        }
 
     }
 
+    private void drawNetDepthLetter(Graphics2D graphics, int netIndex) {
+        int downId = -1;
+
+        Widget parent = client.getWidget(SAILING_SIDEPANEL_GROUP , FACILITIES_CONTENT_CLICKLAYER_CHILD);
+        if (parent == null) return;
+        boolean hidden = false;
+        for (Widget widgetParent = parent; widgetParent != null; widgetParent = widgetParent.getParent())
+        {
+            if (widgetParent.isHidden()) {
+                hidden = true;
+            }
+        }
+
+        if (plugin.boats.get(client.getLocalPlayer().getWorldView().getId()) == null) {
+            return;
+        }
+        int shipType = plugin.boats.get(client.getLocalPlayer().getWorldView().getId());
+
+
+        if (shipType == SLOOP_WORLDVIEW_ID) {
+            downId = (netIndex == 0) ? STARBOARD_DOWN_INDEX : PORT_DOWN_INDEX;
+        } else if (shipType == SKIFF_WORLDVIEW_ID) {
+            downId = SKIFF_DOWN_INDEX;
+        }
+        if (downId < 0) { return; }
+
+        Widget down = parent.getChild(downId);
+
+        Widget viewport = client.getWidget(161, 73);
+        if (viewport == null) return;
+
+        if (down == null || down.isHidden() || hidden || down.getBounds().width <=0 || down.getBounds().height <= 0 || !viewport.getBounds().intersects(down.getBounds()))
+        {
+            return;
+        }
+
+        Rectangle downButton = down.getBounds();
+
+        if (downButton == null || downButton.width <= 0 || downButton.height <= 0)
+        {
+            return;
+        }
+
+        Net net = plugin.netList[netIndex];
+        if (net == null)
+        {
+            return;
+        }
+
+        String letter = depthLetter(net.getNetDepth());
+
+        int targetX = downButton.x - 36;                  // left of the down button (tweak)
+        int targetY = downButton.y;                       // halfway towards the up button (if dy=0, stays on down)
+
+        // Draw the label with a background pill
+        graphics.setFont(FontManager.getRunescapeBoldFont().deriveFont( 14f));
+        FontMetrics fm = graphics.getFontMetrics();
+
+        int textW = fm.stringWidth(letter);
+        int textH = fm.getAscent();
+
+        int x = targetX - textW / 2 + downButton.width / 2;  // center-ish relative to down button width
+        int y = targetY + downButton.height / 2 + textH / 2 - 2;
+
+        int padX = 6;
+        int padY = 4;
+
+        int bgW = textW + padX * 2;
+        int bgH = fm.getHeight() + padY * 2;
+
+        int bgX = x - padX;
+        int bgY = y - fm.getAscent() - padY;
+
+        graphics.setColor(new Color(0, 0, 0, 160));
+        graphics.fillRoundRect(bgX, bgY, bgW, bgH, 10, 10);
+
+        graphics.setColor(colorForDepth(net.getNetDepth()));
+        graphics.drawString(letter, x, y);
+    }
+
+    private static String depthLetter(Net.NetDepth d)
+    {
+        switch (d)
+        {
+            case RAISED:  return "R";
+            case SHALLOW: return "S";
+            case MEDIUM:  return "M";
+            case DEEP:    return "D";
+            default:      return "?";
+        }
+    }
+
+    private static Color colorForDepth(Net.NetDepth d)
+    {
+        switch (d)
+        {
+            case RAISED:  return new Color(200, 200, 200);
+            case SHALLOW: return new Color(80, 255, 80);
+            case MEDIUM:  return new Color(255, 200, 80);
+            case DEEP:    return new Color(255, 80, 80);
+            default:      return Color.WHITE;
+        }
+    }
 }

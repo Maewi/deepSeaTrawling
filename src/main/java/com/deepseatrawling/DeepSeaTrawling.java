@@ -8,6 +8,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.*;
 import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.client.Notifier;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -19,6 +20,7 @@ import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 import net.runelite.client.util.ImageUtil;
 
 import javax.inject.Inject;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.*;
@@ -53,13 +55,23 @@ public class DeepSeaTrawling extends Plugin
 	@Inject
 	private InfoBoxManager infoBoxManager;
 
+    @Inject
+    private Notifier notifier;
+    private boolean notifiedFull = false;
+
 	private TrawlingNetInfoBox trawlingNetInfoBox;
 
 	public final Set<Integer> trackedShoals = new HashSet<>();
 
+    public final int SKIFF_WORLD_ENTITY_TYPE = 2;
+    public final int SLOOP_WORLD_ENTITY_TYPE = 3;
+    public Map<Integer, Integer> boats = new HashMap<>();
+
 	private ShoalData nearestShoal;
 
-	@Provides
+    public Map<ShoalData.ShoalSpecies, Color> speciesColours = new EnumMap<>(ShoalData.ShoalSpecies.class);
+
+    @Provides
 	DeepSeaTrawlingConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(DeepSeaTrawlingConfig.class);
@@ -80,11 +92,12 @@ public class DeepSeaTrawling extends Plugin
 		overlayManager.add(trawlingNetOverlay);
 
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "/icon.png");
-		trawlingNetInfoBox = new TrawlingNetInfoBox(icon, this);
+		trawlingNetInfoBox = new TrawlingNetInfoBox(icon, this, config);
 		infoBoxManager.addInfoBox(trawlingNetInfoBox);
 
 		nearestShoal = null;
 		rebuildTrackedShoals();
+        rebuildShoalColours();
 		log.info("Deep Sea Trawling Plugin Started");
 
 	}
@@ -119,9 +132,13 @@ public class DeepSeaTrawling extends Plugin
 		WorldEntity entity = event.getWorldEntity();
 		WorldEntityConfig cfg = entity.getConfig();
 
-		if (cfg == null || cfg.getId() != SHOAL_WORLD_ENTITY_TYPE) {
+		if (cfg == null) {
 			return;
 		}
+
+        if (cfg.getId() != SHOAL_WORLD_ENTITY_TYPE && cfg.getId() != SKIFF_WORLD_ENTITY_TYPE && cfg.getId() != SLOOP_WORLD_ENTITY_TYPE) {
+            return;
+        }
 
 		WorldView view = entity.getWorldView();
 		if (view == null) {
@@ -130,23 +147,27 @@ public class DeepSeaTrawling extends Plugin
 
 		int worldViewId = view.getId();
 
-		if(nearestShoal == null)
+        if(nearestShoal == null && cfg.getId() == SHOAL_WORLD_ENTITY_TYPE)
 		{
 			nearestShoal = new ShoalData(worldViewId, entity);
-		}
-
-		if (nearestShoal.getWorldViewId() != worldViewId) {
+		} else if (nearestShoal != null && nearestShoal.getWorldViewId() != worldViewId && cfg.getId() == SHOAL_WORLD_ENTITY_TYPE) {
 			nearestShoal = new ShoalData(worldViewId, entity);
-		}
-
-
-		//debugging
-		log.debug("Registered shoal entity worldViewId={} typeId={}", worldViewId, cfg.getId());
+		} else if (cfg.getId() == SKIFF_WORLD_ENTITY_TYPE || cfg.getId() == SLOOP_WORLD_ENTITY_TYPE) {
+            boats.put(worldViewId, cfg.getId());
+        }
 	}
 
 	@Subscribe
 	public void onWorldEntityDespawned(WorldEntityDespawned event)
 	{
+        WorldEntity entity = event.getWorldEntity();
+        WorldEntityConfig cfg = entity.getConfig();
+
+        if (cfg == null) {
+            return;
+        }
+
+        boats.remove(entity.getWorldView().getId());
 		//?
 	}
 
@@ -224,7 +245,7 @@ public class DeepSeaTrawling extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick tick)
 	{
-		ShoalData shoal = getNearestShoal();
+        ShoalData shoal = getNearestShoal();
 		if (shoal == null) {
 			return;
 		}
@@ -265,16 +286,16 @@ public class DeepSeaTrawling extends Plugin
 	public void onChatMessage(ChatMessage event)
 	{
 		ChatMessageType type = event.getType();
+
 		if (type == ChatMessageType.GAMEMESSAGE || type == ChatMessageType.SPAM)
 		{
-			String msg = event.getMessage().replaceAll("<[^>]*>","");
-			if (msg.equals("You empty the nets into the cargo hold.")) {
-				fishQuantity = 0;
-				log.debug("Emptied nets");
-			} else if (msg.equals("You empty the net into the cargo hold.")) {
-				fishQuantity = 0;
-				log.debug("Emptied net");
-			}
+            String msg = event.getMessage().replaceAll("<[^>]*>","");
+            String substring = "";
+			if (msg.equals("You empty the nets into the cargo hold.") || msg.equals("You empty the net into the cargo hold.")) {
+                fishQuantity = 0;
+                log.debug("Emptied nets");
+                notifiedFull = false;
+            }
 
 			if (msg.contains("Trawler's trust")) {
 				// Another message includes the additional fish caught
@@ -294,8 +315,20 @@ public class DeepSeaTrawling extends Plugin
 			if (!substring.equals(""))
 			{
 				fishQuantity += convertToNumber(substring);
+                int totalNetSize = 0;
+                if (netList[0] != null)
+                {
+                    totalNetSize += netList[0].getNetSize();
+                }
+                if (netList[1] != null)
+                {
+                    totalNetSize += netList[1].getNetSize();
+                }
+                if (fishQuantity >= totalNetSize && config.notifyNetFull() && !notifiedFull) {
+                    notifier.notify("Trawling net(s) full! Empty now!");
+                    notifiedFull = true;
+                }
 			}
-
 		}
 	}
 
@@ -373,6 +406,8 @@ public class DeepSeaTrawling extends Plugin
 			return;
 		}
 		rebuildTrackedShoals();
+        rebuildShoalColours();
+
 		/*
 		StringBuilder builder = new StringBuilder();
 		builder.append("Shoal wv=").append(nearestShoal.getWorldViewId()).append(" species=").append(nearestShoal.getSpecies()).append(" path=[");
@@ -432,5 +467,19 @@ public class DeepSeaTrawling extends Plugin
 				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_HEMP_TRAWLING_NET
 				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_COTTON_TRAWLING_NET;
 	}
+
+    private void rebuildShoalColours() {
+        speciesColours.clear();
+        speciesColours.put(ShoalData.ShoalSpecies.GIANT_KRILL, config.giantKrillColour());
+        speciesColours.put(ShoalData.ShoalSpecies.YELLOWFIN, config.yellowfinColour());
+        speciesColours.put(ShoalData.ShoalSpecies.HADDOCK, config.haddockColour());
+        speciesColours.put(ShoalData.ShoalSpecies.HALIBUT, config.halibutColour());
+        speciesColours.put(ShoalData.ShoalSpecies.BLUEFIN, config.bluefinColour());
+        speciesColours.put(ShoalData.ShoalSpecies.MARLIN, config.marlinColour());
+        speciesColours.put(ShoalData.ShoalSpecies.SHIMMERING, config.shimmeringColour());
+        speciesColours.put(ShoalData.ShoalSpecies.GLISTENING, config.glisteningColour());
+        speciesColours.put(ShoalData.ShoalSpecies.VIBRANT, config.vibrantColour());
+
+    }
 
 }

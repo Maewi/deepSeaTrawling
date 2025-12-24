@@ -7,11 +7,13 @@ import java.awt.image.BufferedImage;
 
 public class TrawlingNetInfoBox extends InfoBox {
     private final DeepSeaTrawling plugin;
+    private final DeepSeaTrawlingConfig config;
 
-    public TrawlingNetInfoBox(BufferedImage image, DeepSeaTrawling plugin)
+    public TrawlingNetInfoBox(BufferedImage image, DeepSeaTrawling plugin, DeepSeaTrawlingConfig config)
     {
         super(image, plugin);
         this.plugin = plugin;
+        this.config = config;
     }
 
     @Override
@@ -37,7 +39,7 @@ public class TrawlingNetInfoBox extends InfoBox {
     @Override
     public Color getTextColor()
     {
-        return Color.WHITE;
+        return config.fishCounterTextColour();
     }
 
 }
