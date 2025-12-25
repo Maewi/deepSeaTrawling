@@ -122,14 +122,20 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
         } else {
             return;
         }
+
         Widget viewport = client.getWidget(161, 73);
-        if (viewport == null) return;
+        if (viewport == null) {
+            viewport = client.getWidget(164, 72);
+            if (viewport == null) return;
+        }
+        Rectangle canvas = viewport.getBounds();
 
         Widget button = parent.getChild(childId);
-        if (button == null || button.isHidden() || button.getBounds().width <=0 || button.getBounds().height <= 0 || hidden || !viewport.getBounds().intersects(button.getBounds())) return;
+        if (button == null || button.isHidden() || hidden) return;
 
         Rectangle bounds = button.getBounds();
-        if (bounds == null) return;
+        if (bounds == null || bounds.width <= 0 || bounds.height <= 0) return;
+        if (!canvas.intersects(button.getBounds())) return;
 
         g.setColor(new Color(config.uiHighlightColour().getRed(), config.uiHighlightColour().getGreen(), config.uiHighlightColour().getBlue(), 120));
         g.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
@@ -170,9 +176,13 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
         Widget down = parent.getChild(downId);
 
         Widget viewport = client.getWidget(161, 73);
-        if (viewport == null) return;
+        if (viewport == null) {
+            viewport = client.getWidget(164, 72);
+            if (viewport == null) return;
+        }
+        Rectangle canvas = viewport.getBounds();
 
-        if (down == null || down.isHidden() || hidden || down.getBounds().width <=0 || down.getBounds().height <= 0 || !viewport.getBounds().intersects(down.getBounds()))
+        if (down == null || down.isHidden())
         {
             return;
         }
@@ -183,6 +193,7 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
         {
             return;
         }
+        if (!canvas.intersects(downButton)) return;
 
         Net net = plugin.netList[netIndex];
         if (net == null)
@@ -192,7 +203,7 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
 
         String letter = depthLetter(net.getNetDepth());
 
-        int targetX = downButton.x - 36;                  // left of the down button (tweak)
+        int targetX = downButton.x - 39;                  // left of the down button (magic number)
         int targetY = downButton.y;                       // halfway towards the up button (if dy=0, stays on down)
 
         // Draw the label with a background pill
