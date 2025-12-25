@@ -130,7 +130,7 @@ public interface DeepSeaTrawlingConfig extends Config
             position = 12,
             section = shoalsSection
     )
-    default int diagonalSmoothing() { return 2; } // 0..5 is a good range
+    default boolean diagonalSmoothing() { return false; }
 
     @ConfigItem(
             keyName = "showDepthTimer",

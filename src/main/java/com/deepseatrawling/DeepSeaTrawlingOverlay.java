@@ -12,10 +12,10 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.coords.LocalPoint;
 
 import javax.inject.Inject;
-import java.awt.*;
 import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.Map;
+import java.util.List;
+import java.awt.*;
+
 
 public class DeepSeaTrawlingOverlay extends Overlay {
 
@@ -120,6 +120,10 @@ public class DeepSeaTrawlingOverlay extends Overlay {
         java.util.List<WorldPoint> points = shoal.getPathPoints();
         if (points.size() < 2) {
             return;
+        }
+        if (config.diagonalSmoothing())
+        {
+            points = smoothDiagonals(points);
         }
 
         int plane = shoal.getWorldEntity().getWorldView().getPlane();
@@ -342,5 +346,57 @@ public class DeepSeaTrawlingOverlay extends Overlay {
         return (m > 0) ? String.format("%d:%02d", m, s) : String.format("%ds", s);
     }
 
+    private static List<WorldPoint> smoothDiagonals(List<WorldPoint> in) {
+        if (in == null || in.size() < 3) return in;
 
+        java.util.List<WorldPoint> out = new ArrayList<>();
+        out.add(in.get(0));
+
+        int i = 1;
+        while (i < in.size() - 1)
+        {
+            WorldPoint a = out.get(out.size() - 1);
+            WorldPoint b = in.get(i);
+            WorldPoint c = in.get(i + 1);
+
+            int abx = b.getX() - a.getX();
+            int aby = b.getY() - a.getY();
+            int bcx = c.getX() - b.getX();
+            int bcy = c.getY() - b.getY();
+
+            // A->B and B->C are cardinal steps (N/E/S/W)
+            boolean abCardinal = (Math.abs(abx) + Math.abs(aby)) == 1;
+            boolean bcCardinal = (Math.abs(bcx) + Math.abs(bcy)) == 1;
+
+            // A->C is a diagonal neighbour (one tile diagonally)
+            int acx = c.getX() - a.getX();
+            int acy = c.getY() - a.getY();
+            boolean acDiagonal = Math.abs(acx) == 1 && Math.abs(acy) == 1;
+
+            // Ensure it’s a "turn" not a straight line
+            boolean turnsCorner = (abx != bcx) || (aby != bcy);
+
+            if (abCardinal && bcCardinal && acDiagonal && turnsCorner)
+            {
+                // Drop the corner point b (replace stair with diagonal)
+                i++;           // skip b
+                out.add(c);    // add c directly
+                i++;           // move past c
+                continue;
+
+            }
+
+            out.add(b);
+            i++;
+        }
+
+        // Add the last point if we didn't already
+        WorldPoint lastIn = in.get(in.size() - 1);
+        if (out.get(out.size() - 1) != lastIn)
+        {
+            out.add(lastIn);
+        }
+
+        return out;
+    }
 }
