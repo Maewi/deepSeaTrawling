@@ -15,6 +15,7 @@ import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 import java.awt.*;
+import java.util.Timer;
 
 
 public class DeepSeaTrawlingOverlay extends Overlay {
@@ -41,7 +42,7 @@ public class DeepSeaTrawlingOverlay extends Overlay {
     @Override
     public Dimension render(Graphics2D graphics) {
 
-        if (plugin.netObjectByIndex[0] == null && plugin.netObjectByIndex[1] == null)
+        if (!plugin.boats.containsValue(client.getLocalPlayer().getWorldView().getId()))
         {
             return null;
         }
@@ -239,7 +240,7 @@ public class DeepSeaTrawlingOverlay extends Overlay {
 
     private void drawDepthLabel(Graphics2D graphic, ShoalData shoal, int sizeTiles)
     {
-        if (!config.showShoalDepthText() && !config.showDepthTimer()) {
+        if (!config.showShoalDepthText() && config.depthTimer() == TimerType.NONE) {
             return;
         }
         ShoalData.ShoalDepth depth = shoal.getDepth();
@@ -292,7 +293,7 @@ public class DeepSeaTrawlingOverlay extends Overlay {
         }
 
         int nowTick = client.getTickCount();
-        if (!shoal.isWasMoving() && shoal.hasActiveStopTimer() && config.showDepthTimer())
+        if (!shoal.isWasMoving() && shoal.hasActiveStopTimer() && config.depthTimer() != TimerType.NONE)
         {
             int tDepth = shoal.getTicksUntilDepthChange(nowTick);
             int tMove  = shoal.getTicksUntilMove(nowTick);
@@ -300,12 +301,20 @@ public class DeepSeaTrawlingOverlay extends Overlay {
             // Show "until net change" only before halfway point
             if (tDepth > 0)
             {
-                lines.add("Net change: " + formatTicks(tDepth));
+                if (config.depthTimer() == TimerType.SECONDS) {
+                    lines.add("Net change: " + formatTicks(tDepth));
+                } else {
+                    lines.add("Net change: " + tDepth);
+                }
             }
             // Always show "until move" while stopped (until it hits 0)
             if (tMove > 0)
             {
-                lines.add("Moves: " + formatTicks(tMove));
+                if (config.depthTimer() == TimerType.SECONDS) {
+                    lines.add("Moves: " + formatTicks(tMove));
+                } else {
+                    lines.add("Moves: " + tMove);
+                }
             }
         }
         if (lines.isEmpty()) {

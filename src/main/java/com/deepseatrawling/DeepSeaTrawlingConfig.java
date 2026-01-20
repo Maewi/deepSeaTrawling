@@ -133,13 +133,13 @@ public interface DeepSeaTrawlingConfig extends Config
     default boolean diagonalSmoothing() { return false; }
 
     @ConfigItem(
-            keyName = "showDepthTimer",
+            keyName = "depthTimer",
             name = "Depth Change Timer",
             description = "Show the Timer until the Depth changes / the Shoal moves again",
             position = 13,
             section = shoalsSection
     )
-    default boolean showDepthTimer() { return true; }
+    default TimerType depthTimer() { return TimerType.SECONDS; }
 
     // ------------------------ Path Colour Mode ---------------------
     enum PathColourMode { SOLID, GRADIENT }
@@ -260,7 +260,7 @@ public interface DeepSeaTrawlingConfig extends Config
             position = 0,
             section = coloursSection
     )
-    default Color fishCounterTextColour() { return new Color(255, 255, 255); }
+    default Color fishCounterTextColour() { return Color.GRAY; }
 
     @ConfigItem(
             keyName = "uiHighlightColour",

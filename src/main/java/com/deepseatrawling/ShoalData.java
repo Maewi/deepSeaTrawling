@@ -87,7 +87,7 @@ public class ShoalData {
             ShoalSpecies.HADDOCK, 120,
             ShoalSpecies.YELLOWFIN, 100,
             ShoalSpecies.HALIBUT, 80,
-            ShoalSpecies.BLUEFIN, 66,
+            ShoalSpecies.BLUEFIN, 72,
             ShoalSpecies.MARLIN, 50
     );
 

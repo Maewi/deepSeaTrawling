@@ -75,15 +75,15 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
            if (desired < 1) {
                return null;
            }
+           int bothCorrect = 0;
 
            for (int netIndex = 0; netIndex < playerBoat - 1; netIndex++)
            {
                int current = Net.NetDepth.asInt(plugin.netList[netIndex].getNetDepth());
                if (current <= 0 || current == desired) {
-                   notifiedDepthChange = false;
+                   bothCorrect += 1;
                    continue;
                }
-
                if (!notifiedDepthChange && config.notifyDepthChange()) {
                    notifier.notify("Shoal Depth Changed! Change net depth!");
                    notifiedDepthChange = true;
@@ -92,6 +92,10 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
                    Direction direction = current < desired ? Direction.DOWN : Direction.UP;
                    highlightNetButton(graphics, netIndex, direction);
                }
+           }
+           if (bothCorrect == 2 && notifiedDepthChange)
+           {
+               notifiedDepthChange = false;
            }
        }
         return null;
@@ -171,10 +175,9 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
 
         Widget down = parent.getChild(downId);
 
-        Widget viewport = client.getWidget(161, 73);
+        Widget viewport = client.getWidget(SAILING_SIDEPANEL_GROUP, 0);
         if (viewport == null) {
-            viewport = client.getWidget(164, 72);
-            if (viewport == null) return;
+            return;
         }
         Rectangle canvas = viewport.getBounds();
 

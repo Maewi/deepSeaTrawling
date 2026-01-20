@@ -23,7 +23,6 @@ import net.runelite.client.util.ImageUtil;
 import javax.inject.Inject;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
 import java.util.*;
 
 
@@ -63,6 +62,9 @@ public class DeepSeaTrawling extends Plugin
     private Notifier notifier;
     private boolean notifiedFull = false;
 
+    private int lastNotifiedDepth = -1;
+    private int lastDesiredDepth = -1;
+
 	private TrawlingNetInfoBox trawlingNetInfoBox;
 
 	public final Set<Integer> trackedShoals = new HashSet<>();
@@ -71,8 +73,10 @@ public class DeepSeaTrawling extends Plugin
     public final int SLOOP_WORLD_ENTITY_TYPE = 3;
     public Map<Integer, Integer> boats = new HashMap<>();
 
-	@Getter
+    @Getter
     private ShoalData nearestShoal;
+
+    private final Map<Integer, ShoalData> activeShoals = new HashMap<>();
 
     public Map<ShoalData.ShoalSpecies, Color> speciesColours = new EnumMap<>(ShoalData.ShoalSpecies.class);
 
@@ -139,22 +143,18 @@ public class DeepSeaTrawling extends Plugin
 			return;
 		}
 
-        if (cfg.getId() != SHOAL_WORLD_ENTITY_TYPE && cfg.getId() != SKIFF_WORLD_ENTITY_TYPE && cfg.getId() != SLOOP_WORLD_ENTITY_TYPE) {
-            return;
-        }
+        WorldView view = entity.getWorldView();
+        if (view == null) return;
 
-		WorldView view = entity.getWorldView();
-		if (view == null) {
-			return;
-		}
+        if (cfg.getId() == SHOAL_WORLD_ENTITY_TYPE) {
+            activeShoals.computeIfAbsent(view.getId(), id -> new ShoalData(id, entity, shoalRouteRegistry.get(id)));
 
-		int worldViewId = view.getId();
+            if (!isShoalStillValid(nearestShoal)) {
+                nearestShoal = activeShoals.get(view.getId());
+            }
 
-        if(cfg.getId() == SHOAL_WORLD_ENTITY_TYPE)
-		{
-			nearestShoal = new ShoalData(worldViewId, entity, shoalRouteRegistry.get(worldViewId));
-		} else if (cfg.getId() == SKIFF_WORLD_ENTITY_TYPE || cfg.getId() == SLOOP_WORLD_ENTITY_TYPE) {
-            boats.put(worldViewId, cfg.getId());
+        } else if (cfg.getId() == SKIFF_WORLD_ENTITY_TYPE || cfg.getId() == SLOOP_WORLD_ENTITY_TYPE) {
+            boats.put(view.getId(), cfg.getId());
         }
 	}
 
@@ -170,14 +170,15 @@ public class DeepSeaTrawling extends Plugin
 
         boats.remove(entity.getWorldView().getId());
 
-        if (cfg.getId() == SHOAL_WORLD_ENTITY_TYPE && nearestShoal != null && nearestShoal.getWorldViewId() == entity.getWorldView().getId()) {
-            nearestShoal.setLast(null);
-            nearestShoal.setCurrentWorldPoint(null);
-            nearestShoal.setShoalNpc(null);
-            nearestShoal.setShoalObject(null);
-            nearestShoal.setMovingStreak(0);
-            nearestShoal.setStoppedStreak(0);
-            nearestShoal.setWasMoving(false);
+        if (cfg.getId() == SHOAL_WORLD_ENTITY_TYPE) {
+
+            activeShoals.remove(entity.getWorldView().getId());
+
+            if (nearestShoal != null && nearestShoal.getWorldViewId() == entity.getWorldView().getId()) {
+                nearestShoal = pickBestShoal();
+                lastDesiredDepth = -1;
+                lastNotifiedDepth = -1;
+            }
         }
 	}
 
@@ -291,6 +292,7 @@ public class DeepSeaTrawling extends Plugin
         int nowTick = client.getTickCount();
 
         shoal.setDepthFromAnimation(client.getTickCount());
+        checkWrongDepthNotification();
 
         LocalPoint currentLP = shoal.getWorldEntity().getLocalLocation();
         if (currentLP == null) return;
@@ -369,10 +371,12 @@ public class DeepSeaTrawling extends Plugin
 	{
 		ChatMessageType type = event.getType();
 
+        if (!boats.containsValue(client.getLocalPlayer().getWorldView().getId())) return;
+
 		if (type == ChatMessageType.GAMEMESSAGE || type == ChatMessageType.SPAM)
 		{
             String msg = event.getMessage().replaceAll("<[^>]*>","");
-			if (msg.equals("You empty the nets into the cargo hold.") || msg.equals("You empty the net into the cargo hold.")) {
+			if (msg.equals("You empty the nets into the cargo hold.") || msg.equals("You empty the net into the cargo hold.") || msg.equals("You take all of the fish from the nets") || msg.equals("You take all of the fish from the net")) {
                 fishQuantity = 0;
                 log.debug("Emptied nets");
                 notifiedFull = false;
@@ -397,13 +401,11 @@ public class DeepSeaTrawling extends Plugin
 			if (!substring.isEmpty())
 			{
                 int totalNetSize = 0;
-                if (netList[0] != null)
-                {
-                    totalNetSize += netList[0].getNetSize();
-                }
-                if (netList[1] != null)
-                {
-                    totalNetSize += netList[1].getNetSize();
+                for (int i = 0; i < 2; i++) {
+                    if (netObjectByIndex[i] != null)
+                    {
+                        totalNetSize += netList[i].getNetSize();
+                    }
                 }
                 if (totalNetSize > 0) {
                     fishQuantity += convertToNumber(substring);
@@ -557,6 +559,72 @@ public class DeepSeaTrawling extends Plugin
         speciesColours.put(ShoalData.ShoalSpecies.GLISTENING, config.glisteningColour());
         speciesColours.put(ShoalData.ShoalSpecies.VIBRANT, config.vibrantColour());
 
+    }
+
+    private void checkWrongDepthNotification() {
+        ShoalData shoal = getNearestShoal();
+        int desiredDepth = -1;
+
+        if (shoal != null && shoal.getDepth() != ShoalData.ShoalDepth.UNKNOWN) {
+            desiredDepth = ShoalData.ShoalDepth.asInt(shoal.getDepth());
+        }
+        if (desiredDepth < 1) {
+            lastDesiredDepth = -1;
+            lastNotifiedDepth = -1;
+            return;
+        }
+
+        boolean depthChange = desiredDepth != lastDesiredDepth;
+        if (depthChange) {
+            lastDesiredDepth = desiredDepth;
+            if (checkNetDepths(desiredDepth) && lastNotifiedDepth != desiredDepth) {
+                lastNotifiedDepth = desiredDepth;
+                notifier.notify("Shoal depth changed! Change net depth!");
+            }
+        }
+
+    }
+
+    private boolean checkNetDepths(int desiredDepth) {
+        for (int i = 0; i < 2; i++) {
+            Net net = netList[i];
+            if (net == null) continue;
+
+            int currentDepth = Net.NetDepth.asInt(net.getNetDepth());
+            if (currentDepth > 0 && currentDepth != desiredDepth) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isShoalStillValid(ShoalData shoal) {
+        if (shoal == null) return false;
+        ShoalData reg = activeShoals.get(shoal.getWorldViewId());
+        return reg != null && reg.getWorldEntity() != null;
+    }
+
+    private ShoalData pickBestShoal() {
+        if (activeShoals.isEmpty()) return null;
+
+        WorldPoint playerLocation = client.getLocalPlayer() != null ? client.getLocalPlayer().getWorldLocation() : null;
+        if (playerLocation == null) return activeShoals.values().iterator().next();
+
+        ShoalData best = null;
+        int bestDist = Integer.MAX_VALUE;
+
+        for (ShoalData shoal : activeShoals.values()) {
+            WorldPoint worldPoint = shoal.getCurrentWorldPoint();
+            if (worldPoint == null) continue;
+
+            int dist = playerLocation.distanceTo(worldPoint);
+            if ( dist < bestDist ) {
+                bestDist = dist;
+                best = shoal;
+            }
+        }
+
+        return best != null ? best : activeShoals.values().iterator().next();
     }
 
 }
