@@ -286,31 +286,31 @@ public class DeepSeaTrawling extends Plugin
     @Subscribe
     public void onGameTick(GameTick tick)
     {
-        ShoalData shoal = getNearestShoal();
-        if (shoal == null) return;
+        for (ShoalData shoal : activeShoals.values()) {
 
-        int nowTick = client.getTickCount();
+            LocalPoint currentLP = shoal.getWorldEntity().getLocalLocation();
+            if (currentLP == null) continue;
 
+            shoal.setCurrentWorldPoint(WorldPoint.fromLocal(client, currentLP));
+        }
+
+        ShoalData shoal = nearestShoal;
+        if (shoal == null) {
+            return;
+        }
         shoal.setDepthFromAnimation(client.getTickCount());
         checkWrongDepthNotification();
-
-        LocalPoint currentLP = shoal.getWorldEntity().getLocalLocation();
-        if (currentLP == null) return;
-
-        WorldPoint currentWP = WorldPoint.fromLocal(client, currentLP);
-
-        shoal.setCurrentWorldPoint(currentWP);
 
         WorldPoint last = shoal.getLast();
         if (last == null)
         {
-            shoal.setLast(currentWP);
+            shoal.setLast(shoal.getCurrentWorldPoint());
             shoal.setMovingStreak(0);
             shoal.setStoppedStreak(0);
             return;
         }
 
-        boolean isMoving = !currentWP.equals(last);
+        boolean isMoving = !shoal.getCurrentWorldPoint().equals(last);
 
         if (isMoving)
         {
@@ -341,7 +341,7 @@ public class DeepSeaTrawling extends Plugin
 
                 if (stopDurationTicks > 0)
                 {
-                    shoal.beginStopTimer(nowTick, stopDurationTicks - 2);
+                    shoal.beginStopTimer(client.getTickCount(), stopDurationTicks - 2);
                 }
             }
             shoal.setWasMoving(false);
@@ -352,7 +352,7 @@ public class DeepSeaTrawling extends Plugin
             shoal.setWasMoving(true);
         }
 
-        if (shoal.hasActiveStopTimer() && shoal.getTicksUntilMove(nowTick) <= 0)
+        if (shoal.hasActiveStopTimer() && shoal.getTicksUntilMove(client.getTickCount()) <= 0)
         {
             shoal.clearStopTimer();
         }
@@ -363,7 +363,7 @@ public class DeepSeaTrawling extends Plugin
             shoal.setWasMoving(false);
         }
 
-        shoal.setLast(currentWP);
+        shoal.setLast(shoal.getCurrentWorldPoint());
     }
 
 	@Subscribe
@@ -371,7 +371,7 @@ public class DeepSeaTrawling extends Plugin
 	{
 		ChatMessageType type = event.getType();
 
-        if (!boats.containsValue(client.getLocalPlayer().getWorldView().getId())) return;
+        if (!boats.containsKey(client.getLocalPlayer().getWorldView().getId())) return;
 
 		if (type == ChatMessageType.GAMEMESSAGE || type == ChatMessageType.SPAM)
 		{

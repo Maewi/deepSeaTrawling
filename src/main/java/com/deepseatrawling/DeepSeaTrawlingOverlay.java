@@ -42,7 +42,7 @@ public class DeepSeaTrawlingOverlay extends Overlay {
     @Override
     public Dimension render(Graphics2D graphics) {
 
-        if (!plugin.boats.containsValue(client.getLocalPlayer().getWorldView().getId()))
+        if (!plugin.boats.containsKey(client.getLocalPlayer().getWorldView().getId()))
         {
             return null;
         }
