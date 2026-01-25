@@ -122,7 +122,7 @@ public interface DeepSeaTrawlingConfig extends Config
             section = shoalsSection
     )
     default boolean showDirectionArrows() { return true; }
-
+/*
     @ConfigItem(
             keyName = "diagonalSmoothing",
             name = "Smooth diagonal path prediction",
@@ -131,7 +131,7 @@ public interface DeepSeaTrawlingConfig extends Config
             section = shoalsSection
     )
     default boolean diagonalSmoothing() { return false; }
-
+*/
     @ConfigItem(
             keyName = "depthTimer",
             name = "Depth Change Timer",
