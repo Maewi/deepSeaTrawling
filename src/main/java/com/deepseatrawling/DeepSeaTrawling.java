@@ -8,6 +8,7 @@ import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.*;
 import net.runelite.api.gameval.NpcID;
+import net.runelite.api.gameval.ObjectID;
 import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.Notifier;
 import net.runelite.client.config.ConfigManager;
@@ -24,6 +25,7 @@ import javax.inject.Inject;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.*;
+import java.util.List;
 
 
 @Slf4j
@@ -63,7 +65,6 @@ public class DeepSeaTrawling extends Plugin
     private boolean notifiedFull = false;
 
     private int lastNotifiedDepth = -1;
-    private int lastDesiredDepth = -1;
 
 	private TrawlingNetInfoBox trawlingNetInfoBox;
 
@@ -147,10 +148,11 @@ public class DeepSeaTrawling extends Plugin
         if (view == null) return;
 
         if (cfg.getId() == SHOAL_WORLD_ENTITY_TYPE) {
-            activeShoals.computeIfAbsent(view.getId(), id -> new ShoalData(id, entity, shoalRouteRegistry.get(id)));
-
-            if (!isShoalStillValid(nearestShoal)) {
-                nearestShoal = activeShoals.get(view.getId());
+            int worldViewId = view.getId();
+            ShoalData newShoal = new ShoalData(worldViewId, entity, shoalRouteRegistry.get(worldViewId));
+            activeShoals.computeIfAbsent(worldViewId, id -> newShoal);
+            if (nearestShoal == null) {
+                nearestShoal = newShoal;
             }
 
         } else if (cfg.getId() == SKIFF_WORLD_ENTITY_TYPE || cfg.getId() == SLOOP_WORLD_ENTITY_TYPE) {
@@ -168,18 +170,11 @@ public class DeepSeaTrawling extends Plugin
             return;
         }
 
-        boats.remove(entity.getWorldView().getId());
+        int worldViewId = entity.getWorldView().getId();
 
-        if (cfg.getId() == SHOAL_WORLD_ENTITY_TYPE) {
+        boats.remove(worldViewId);
+        activeShoals.remove(worldViewId);
 
-            activeShoals.remove(entity.getWorldView().getId());
-
-            if (nearestShoal != null && nearestShoal.getWorldViewId() == entity.getWorldView().getId()) {
-                nearestShoal = pickBestShoal();
-                lastDesiredDepth = -1;
-                lastNotifiedDepth = -1;
-            }
-        }
 	}
 
 	@Subscribe
@@ -209,7 +204,7 @@ public class DeepSeaTrawling extends Plugin
 		}
 
 		int worldViewId = obj.getWorldView().getId();
-		ShoalData shoal = nearestShoal;
+		ShoalData shoal = activeShoals.get(worldViewId);
 		if (shoal == null) {
 			return;
 		}
@@ -219,7 +214,10 @@ public class DeepSeaTrawling extends Plugin
             shoal.setSpecies(species);
             shoal.setShoalObject(obj);
 
-            LocalPoint lp = shoal.getWorldEntity().getLocalLocation();
+            WorldEntity shoalWorldEntity= shoal.getWorldEntity();
+            if (shoalWorldEntity == null) return;
+
+            LocalPoint lp = shoalWorldEntity.getLocalLocation();
             if (lp != null)
             {
                 WorldPoint wp = WorldPoint.fromLocal(client, lp);
@@ -243,10 +241,14 @@ public class DeepSeaTrawling extends Plugin
 		if (netObjectByIndex[0] == obj) netObjectByIndex[0] = null;
 		if (netObjectByIndex[1] == obj) netObjectByIndex[1] = null;
 
-        if (nearestShoal != null && nearestShoal.getShoalObject() == obj)
+        int worldViewId = obj.getWorldView() != null ? obj.getWorldView().getId() : -1;
+        if (worldViewId != -1)
         {
-            nearestShoal.setShoalObject(null);
-
+            ShoalData shoal = activeShoals.get(worldViewId);
+            if (shoal != null && shoal.getShoalObject() == obj)
+            {
+                shoal.setShoalObject(null);
+            }
         }
     }
 
@@ -287,12 +289,16 @@ public class DeepSeaTrawling extends Plugin
     public void onGameTick(GameTick tick)
     {
         for (ShoalData shoal : activeShoals.values()) {
+            WorldEntity shoalWorldEntity = shoal.getWorldEntity();
+            if (shoalWorldEntity == null) continue;
 
-            LocalPoint currentLP = shoal.getWorldEntity().getLocalLocation();
+            LocalPoint currentLP = shoalWorldEntity.getLocalLocation();
             if (currentLP == null) continue;
 
             shoal.setCurrentWorldPoint(WorldPoint.fromLocal(client, currentLP));
         }
+
+        updateNearestShoalSticky();
 
         ShoalData shoal = nearestShoal;
         if (shoal == null) {
@@ -376,9 +382,14 @@ public class DeepSeaTrawling extends Plugin
 		if (type == ChatMessageType.GAMEMESSAGE || type == ChatMessageType.SPAM)
 		{
             String msg = event.getMessage().replaceAll("<[^>]*>","");
-			if (msg.equals("You empty the nets into the cargo hold.") || msg.equals("You empty the net into the cargo hold.") || msg.equals("You take all of the fish from the nets") || msg.equals("You take all of the fish from the net")) {
+			if (msg.startsWith("You empty the net") ||
+                    msg.startsWith("You take all of the fish from the net")) {
                 fishQuantity = 0;
                 log.debug("Emptied nets");
+                notifiedFull = false;
+            } else if (msg.equals("You take some of the fish from the net")) {
+                log.debug("Unknown amount withdrawn from net, resetting to 0");
+                fishQuantity = 0;
                 notifiedFull = false;
             }
 
@@ -529,22 +540,22 @@ public class DeepSeaTrawling extends Plugin
 	}
 	public boolean isPortNetObject(int objectId)
 	{
-		return objectId == net.runelite.api.gameval.ObjectID.SAILING_ROPE_TRAWLING_NET_3X8_PORT
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_LINEN_TRAWLING_NET_3X8_PORT
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_HEMP_TRAWLING_NET_3X8_PORT
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_COTTON_TRAWLING_NET_3X8_PORT;
+		return objectId == ObjectID.SAILING_ROPE_TRAWLING_NET_3X8_PORT
+				|| objectId == ObjectID.SAILING_LINEN_TRAWLING_NET_3X8_PORT
+				|| objectId == ObjectID.SAILING_HEMP_TRAWLING_NET_3X8_PORT
+				|| objectId == ObjectID.SAILING_COTTON_TRAWLING_NET_3X8_PORT;
 	}
 
 	public boolean isStarboardNetObject(int objectId)
 	{
-		return objectId == net.runelite.api.gameval.ObjectID.SAILING_ROPE_TRAWLING_NET_3X8_STARBOARD
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_LINEN_TRAWLING_NET_3X8_STARBOARD
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_HEMP_TRAWLING_NET_3X8_STARBOARD
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_COTTON_TRAWLING_NET_3X8_STARBOARD
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_ROPE_TRAWLING_NET
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_LINEN_TRAWLING_NET
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_HEMP_TRAWLING_NET
-				|| objectId == net.runelite.api.gameval.ObjectID.SAILING_COTTON_TRAWLING_NET;
+		return objectId == ObjectID.SAILING_ROPE_TRAWLING_NET_3X8_STARBOARD
+				|| objectId == ObjectID.SAILING_LINEN_TRAWLING_NET_3X8_STARBOARD
+				|| objectId == ObjectID.SAILING_HEMP_TRAWLING_NET_3X8_STARBOARD
+				|| objectId == ObjectID.SAILING_COTTON_TRAWLING_NET_3X8_STARBOARD
+				|| objectId == ObjectID.SAILING_ROPE_TRAWLING_NET
+				|| objectId == ObjectID.SAILING_LINEN_TRAWLING_NET
+				|| objectId == ObjectID.SAILING_HEMP_TRAWLING_NET
+				|| objectId == ObjectID.SAILING_COTTON_TRAWLING_NET;
 	}
 
     private void rebuildShoalColours() {
@@ -569,16 +580,16 @@ public class DeepSeaTrawling extends Plugin
             desiredDepth = ShoalData.ShoalDepth.asInt(shoal.getDepth());
         }
         if (desiredDepth < 1) {
-            lastDesiredDepth = -1;
-            lastNotifiedDepth = -1;
             return;
         }
 
-        boolean depthChange = desiredDepth != lastDesiredDepth;
-        if (depthChange) {
-            lastDesiredDepth = desiredDepth;
-            if (checkNetDepths(desiredDepth) && lastNotifiedDepth != desiredDepth) {
-                lastNotifiedDepth = desiredDepth;
+        if (desiredDepth == lastNotifiedDepth) {
+            return;
+        }
+
+        if (checkNetDepths(desiredDepth) && lastNotifiedDepth != desiredDepth) {
+            lastNotifiedDepth = desiredDepth;
+            if (config.notifyDepthChange()) {
                 notifier.notify("Shoal depth changed! Change net depth!");
             }
         }
@@ -598,33 +609,34 @@ public class DeepSeaTrawling extends Plugin
         return false;
     }
 
-    private boolean isShoalStillValid(ShoalData shoal) {
-        if (shoal == null) return false;
-        ShoalData reg = activeShoals.get(shoal.getWorldViewId());
-        return reg != null && reg.getWorldEntity() != null;
+    private void updateNearestShoalSticky() {
+        if (activeShoals.size() == 1) {
+            nearestShoal = activeShoals.values().iterator().next();
+        } else if (activeShoals.isEmpty()) {
+            return;
+        } else {
+            WorldPoint playerLocation = client.getLocalPlayer() != null
+                    ? client.getLocalPlayer().getWorldLocation()
+                    : null;
+            if (playerLocation == null) return;
+            ShoalData bestShoal = pickBestShoal(playerLocation);
+            nearestShoal = bestShoal;
+        }
     }
 
-    private ShoalData pickBestShoal() {
-        if (activeShoals.isEmpty()) return null;
-
-        WorldPoint playerLocation = client.getLocalPlayer() != null ? client.getLocalPlayer().getWorldLocation() : null;
-        if (playerLocation == null) return activeShoals.values().iterator().next();
-
-        ShoalData best = null;
-        int bestDist = Integer.MAX_VALUE;
-
+    private ShoalData pickBestShoal(WorldPoint playerLocation) {
+        ShoalData bestShoal = nearestShoal;
+        int bestDist = playerLocation.distanceTo(nearestShoal.getCurrentWorldPoint());
         for (ShoalData shoal : activeShoals.values()) {
             WorldPoint worldPoint = shoal.getCurrentWorldPoint();
             if (worldPoint == null) continue;
 
-            int dist = playerLocation.distanceTo(worldPoint);
-            if ( dist < bestDist ) {
-                bestDist = dist;
-                best = shoal;
+            int shoalDistance = playerLocation.distanceTo(worldPoint);
+            if (shoalDistance < bestDist) {
+                bestDist = shoalDistance;
+                bestShoal = shoal;
             }
         }
-
-        return best != null ? best : activeShoals.values().iterator().next();
+        return bestShoal;
     }
-
 }

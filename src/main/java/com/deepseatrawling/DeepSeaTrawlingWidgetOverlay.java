@@ -13,10 +13,6 @@ import java.awt.*;
 
 public class DeepSeaTrawlingWidgetOverlay extends Overlay {
 
-    @Inject
-    private Notifier notifier;
-    private boolean notifiedDepthChange = false;
-
     private static final int SAILING_SIDEPANEL_GROUP = 937;
     private static final int FACILITIES_CONTENT_CLICKLAYER_CHILD = 25;
 
@@ -75,27 +71,17 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
            if (desired < 1) {
                return null;
            }
-           int bothCorrect = 0;
 
            for (int netIndex = 0; netIndex < playerBoat - 1; netIndex++)
            {
                int current = Net.NetDepth.asInt(plugin.netList[netIndex].getNetDepth());
                if (current <= 0 || current == desired) {
-                   bothCorrect += 1;
                    continue;
-               }
-               if (!notifiedDepthChange && config.notifyDepthChange()) {
-                   notifier.notify("Shoal Depth Changed! Change net depth!");
-                   notifiedDepthChange = true;
                }
                if (config.showNetWidgetHint()) {
                    Direction direction = current < desired ? Direction.DOWN : Direction.UP;
                    highlightNetButton(graphics, netIndex, direction);
                }
-           }
-           if (bothCorrect == 2 && notifiedDepthChange)
-           {
-               notifiedDepthChange = false;
            }
        }
         return null;
@@ -105,13 +91,6 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
     {
         Widget parent = client.getWidget(SAILING_SIDEPANEL_GROUP , FACILITIES_CONTENT_CLICKLAYER_CHILD);
         if (parent == null) return;
-        boolean hidden = false;
-        for (Widget widgetParent = parent; widgetParent != null; widgetParent = widgetParent.getParent())
-        {
-            if (widgetParent.isHidden()) {
-                hidden = true;
-            }
-        }
 
         if (plugin.boats.get(client.getLocalPlayer().getWorldView().getId()) == null) {
             return;
@@ -121,9 +100,9 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
         int childId = -1;
         if (netIndex == 0) {
             if (shipType == SKIFF_WORLDVIEW_ID) {
-                childId = (direction == Direction.DOWN ? SKIFF_DOWN_INDEX : SKIFF_UP_INDEX);
+                childId = direction == Direction.DOWN ? SKIFF_DOWN_INDEX : SKIFF_UP_INDEX;
             } else if (shipType == SLOOP_WORLDVIEW_ID){
-                childId = (direction == Direction.DOWN ? STARBOARD_DOWN_INDEX : STARBOARD_UP_INDEX);
+                childId = direction == Direction.DOWN ? STARBOARD_DOWN_INDEX : STARBOARD_UP_INDEX;
             }
         } else if (netIndex == 1) {
             childId = direction == Direction.DOWN ? PORT_DOWN_INDEX : PORT_UP_INDEX;
@@ -131,19 +110,17 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
             return;
         }
 
-        Widget viewport = client.getWidget(161, 73);
-        if (viewport == null) {
-            viewport = client.getWidget(164, 72);
-            if (viewport == null) return;
-        }
-        Rectangle canvas = viewport.getBounds();
+        Widget canvas = client.getWidget(SAILING_SIDEPANEL_GROUP, 5);
+        if (canvas == null) return;
+
+        Rectangle canvasBounds = canvas.getBounds();
 
         Widget button = parent.getChild(childId);
-        if (button == null || button.isHidden() || hidden) return;
+        if (button == null || button.isHidden()) return;
 
         Rectangle bounds = button.getBounds();
         if (bounds == null || bounds.width <= 0 || bounds.height <= 0) return;
-        if (!canvas.intersects(button.getBounds())) return;
+        if (!canvasBounds.intersects(button.getBounds())) return;
 
         g.setColor(new Color(config.uiHighlightColour().getRed(), config.uiHighlightColour().getGreen(), config.uiHighlightColour().getBlue(), 120));
         g.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, 8, 8);
@@ -175,11 +152,10 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
 
         Widget down = parent.getChild(downId);
 
-        Widget viewport = client.getWidget(SAILING_SIDEPANEL_GROUP, 0);
-        if (viewport == null) {
-            return;
-        }
-        Rectangle canvas = viewport.getBounds();
+        Widget canvas = client.getWidget(SAILING_SIDEPANEL_GROUP, 5);
+        if (canvas == null) return;
+
+        Rectangle canvasBounds = canvas.getBounds();
 
         if (down == null || down.isHidden())
         {
@@ -192,7 +168,7 @@ public class DeepSeaTrawlingWidgetOverlay extends Overlay {
         {
             return;
         }
-        if (!canvas.intersects(downButton)) return;
+        if (!canvasBounds.intersects(downButton)) return;
 
         Net net = plugin.netList[netIndex];
         if (net == null)

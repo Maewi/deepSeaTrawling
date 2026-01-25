@@ -15,8 +15,6 @@ import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 import java.awt.*;
-import java.util.Timer;
-
 
 public class DeepSeaTrawlingOverlay extends Overlay {
 
