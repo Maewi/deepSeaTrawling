@@ -123,11 +123,12 @@ public class DeepSeaTrawlingOverlay extends Overlay {
         if (points.size() < 2) {
             return;
         }
+/*
         if (config.diagonalSmoothing())
         {
             points = smoothDiagonals(points);
         }
-
+*/
         int plane = shoal.getWorldEntity().getWorldView().getPlane();
 
         path.setStroke(new BasicStroke(1.5f));
