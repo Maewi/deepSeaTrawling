@@ -128,6 +128,8 @@ public class DeepSeaTrawling extends Plugin
 		trackedShoals.clear();
 		netObjectByIndex[0] = null;
 		netObjectByIndex[1] = null;
+        activeShoals.clear();
+        nearestShoal = null;
 		log.info("Deep Sea Trawling Plugin Stopped");
 	}
 
@@ -255,20 +257,22 @@ public class DeepSeaTrawling extends Plugin
     @Subscribe
     public void onNpcSpawned(NpcSpawned e)
     {
-        if (nearestShoal != null && e.getNpc().getId() == NpcID.SAILING_SHOAL_RIPPLES && e.getNpc().getWorldView().getId() == nearestShoal.getWorldViewId())
-        {
-            nearestShoal.setShoalNpc(e.getNpc());
-            nearestShoal.setDepthFromAnimation(client.getTickCount());
+        NPC eventNpc = e.getNpc();
+        int npcWorldViewId = eventNpc.getWorldView().getId();
+        if (eventNpc.getId() == NpcID.SAILING_SHOAL_RIPPLES) {
+            activeShoals.get(npcWorldViewId).setShoalNpc(eventNpc);
+            activeShoals.get(npcWorldViewId).setDepthFromAnimation(client.getTickCount());
         }
     }
 
     @Subscribe
     public void onNpcDespawned(NpcDespawned e)
     {
-        if (nearestShoal != null && nearestShoal.getShoalNpc() != null && nearestShoal.getShoalNpc() == e.getNpc() )
-        {
-            nearestShoal.setShoalNpc(null);
-            nearestShoal.setDepth(ShoalData.ShoalDepth.UNKNOWN);
+        NPC eventNpc = e.getNpc();
+        int npcWorldViewId = eventNpc.getWorldView().getId();
+        if (eventNpc.getId() == NpcID.SAILING_SHOAL_RIPPLES) {
+            activeShoals.get(npcWorldViewId).setShoalNpc(null);
+            activeShoals.get(npcWorldViewId).setDepth(ShoalData.ShoalDepth.UNKNOWN);
         }
     }
 
@@ -387,7 +391,7 @@ public class DeepSeaTrawling extends Plugin
                 fishQuantity = 0;
                 log.debug("Emptied nets");
                 notifiedFull = false;
-            } else if (msg.equals("You take some of the fish from the net")) {
+            } else if (msg.equals("You take some fish from the net")) {
                 log.debug("Unknown amount withdrawn from net, resetting to 0");
                 fishQuantity = 0;
                 notifiedFull = false;
